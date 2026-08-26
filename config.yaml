@@ -1,0 +1,14 @@
+# Configurazione della persistenza dei file markdown.
+#
+# storage.mode:
+#   - "local"  -> i file vengono salvati nella cartella locale definita in storage.local.root
+#   - "docker" -> i file vengono salvati nel volume Docker definito in storage.docker.root
+#                 (il percorso deve corrispondere a quello dichiarato con VOLUME nel Dockerfile)
+storage:
+  mode: local
+
+  local:
+    root: data/root
+
+  docker:
+    root: /app/data/root

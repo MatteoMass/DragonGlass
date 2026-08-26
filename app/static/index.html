@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Dragon Glass</title>
+<link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+<div class="layout">
+  <aside id="sidebar">
+    <div class="sidebar-header">
+      <span>Dragon Glass</span>
+      <div class="sidebar-actions">
+        <button id="btn-new-file" title="Nuovo file">📄+</button>
+        <button id="btn-new-folder" title="Nuova cartella">📁+</button>
+        <button id="btn-theme-toggle" title="Cambia tema">🌙</button>
+      </div>
+    </div>
+    <div id="tree"></div>
+  </aside>
+  <main id="content">
+    <div id="empty-state">Seleziona un file dall'albero a sinistra</div>
+    <div id="editor" class="hidden">
+      <div class="editor-toolbar">
+        <span id="file-title"></span>
+        <div class="toolbar-actions">
+          <button id="btn-preview" class="active">Anteprima</button>
+          <button id="btn-edit">Modifica</button>
+          <span id="toolbar-insert" class="toolbar-insert hidden">
+            <button id="btn-insert-table" title="Inserisci tabella">Tabella</button>
+            <button id="btn-insert-image" title="Inserisci immagine">Immagine</button>
+          </span>
+          <button id="btn-save" class="hidden">Salva</button>
+        </div>
+        <input type="file" id="image-input" accept="image/*" class="hidden" />
+      </div>
+      <div id="preview-pane" class="pane"></div>
+      <textarea id="edit-pane" class="pane hidden" spellcheck="false"></textarea>
+    </div>
+  </main>
+</div>
+<div id="context-menu" class="context-menu hidden"></div>
+<div id="highlight-menu" class="context-menu hidden">
+  <div class="highlight-swatches">
+    <button class="swatch hl-yellow" data-color="yellow" title="Giallo"></button>
+    <button class="swatch hl-blue" data-color="blue" title="Blu"></button>
+    <button class="swatch hl-green" data-color="green" title="Verde"></button>
+    <button class="swatch hl-clear" data-color="clear" title="Trasparente"></button>
+  </div>
+</div>
+<div id="wikilink-autocomplete" class="context-menu hidden"></div>
+<div id="modal-overlay" class="modal-overlay hidden">
+  <div class="modal">
+    <div id="modal-title" class="modal-title"></div>
+    <input type="text" id="modal-input" class="modal-input" />
+    <div class="modal-actions">
+      <button id="modal-cancel">Annulla</button>
+      <button id="modal-confirm" class="primary">Crea</button>
+    </div>
+  </div>
+</div>
+<script src="/app.js"></script>
+</body>
+</html>
