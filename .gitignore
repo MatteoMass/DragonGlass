@@ -216,3 +216,8 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Dragon Glass
+data/root/
+src/frontend/node_modules/
+src/frontend/dist/

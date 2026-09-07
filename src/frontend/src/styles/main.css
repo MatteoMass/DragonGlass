@@ -1,0 +1,821 @@
+/*
+ * The tokens for both themes, the highlight colours, and the components.
+ *
+ * Every colour in the app is a token declared here: the light palette on :root,
+ * the dark one on [data-theme='dark'], which useTheme stamps on <html>.
+ */
+
+:root {
+  --bg: #f7f7f8;
+  --bg-panel: #ffffff;
+  --bg-sunken: #f0f0f2;
+  --bg-hover: #e9e9ee;
+  --bg-selected: #dfe6f5;
+  --border: #dcdce2;
+  --text: #1d1d20;
+  --text-muted: #6b6b76;
+  --accent: #3b6ea5;
+  --accent-text: #ffffff;
+  --danger: #b3261e;
+  --code-bg: #f2f2f5;
+
+  --hl-yellow: #fff3a3;
+  --hl-blue: #bcd9ff;
+  --hl-green: #c3f0c8;
+  --hl-text: #1d1d20;
+
+  --sidebar-width: 280px;
+  --sidebar-collapsed-width: 46px;
+  --radius: 6px;
+  --font-ui: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: ui-monospace, 'SFMono-Regular', 'JetBrains Mono', Menlo, Consolas, monospace;
+}
+
+[data-theme='dark'] {
+  --bg: #17171a;
+  --bg-panel: #1e1e22;
+  --bg-sunken: #232328;
+  --bg-hover: #2c2c33;
+  --bg-selected: #2f3a4d;
+  --border: #33333b;
+  --text: #e6e6ea;
+  --text-muted: #9a9aa6;
+  --accent: #6a9fd8;
+  --accent-text: #10131a;
+  --danger: #f2777a;
+  --code-bg: #26262c;
+
+  --hl-yellow: #6b5b1f;
+  --hl-blue: #274766;
+  --hl-green: #2b5433;
+  --hl-text: #f2f2f5;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+/* ---------------------------------------------------------------- layout -- */
+
+.app {
+  display: grid;
+  grid-template-columns: var(--sidebar-width) 1fr;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Folded down to its mark: the column keeps only the width of the icon that
+   opens it again. */
+.app.is-collapsed {
+  grid-template-columns: var(--sidebar-collapsed-width) 1fr;
+}
+
+.workspace {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.workspace-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 100%;
+  color: var(--text-muted);
+}
+
+.workspace-empty h2 {
+  margin: 0;
+  font-weight: 600;
+}
+
+.workspace-error {
+  margin: 0;
+  padding: 8px 16px;
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+  border-bottom: 1px solid var(--border);
+  color: var(--danger);
+}
+
+/* --------------------------------------------------------------- sidebar -- */
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--bg-panel);
+  border-right: 1px solid var(--border);
+}
+
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 12px 8px;
+}
+
+.sidebar.is-collapsed .sidebar-header {
+  justify-content: center;
+  padding: 12px 4px 8px;
+}
+
+.sidebar-logo {
+  display: flex;
+  flex: none;
+  align-items: center;
+  padding: 3px;
+}
+
+.app-logo {
+  display: block;
+}
+
+.sidebar-title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.sidebar-actions {
+  display: flex;
+  gap: 4px;
+  padding: 0 12px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.sidebar-actions .button {
+  flex: 1;
+  background: none;
+  border-color: transparent;
+  color: var(--text-muted);
+}
+
+.sidebar-actions .button:hover:not(:disabled) {
+  background: var(--bg-hover);
+  border-color: transparent;
+  color: var(--text);
+}
+
+.sidebar-tree {
+  flex: 1;
+  min-height: 0;
+  padding: 8px 0 24px;
+  overflow: auto;
+}
+
+.sidebar-error {
+  margin: 0;
+  padding: 8px 12px;
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+  border-top: 1px solid var(--border);
+  color: var(--danger);
+  cursor: pointer;
+}
+
+/* ------------------------------------------------------------------ tree -- */
+
+.file-tree {
+  min-height: 100%;
+}
+
+.tree-root,
+.tree-children {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* The line dropped from an open folder, so its children read as its own. */
+.tree-children {
+  position: relative;
+}
+
+.tree-children::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--guide-left, 14px);
+  border-left: 1px solid var(--border);
+}
+
+.tree-empty {
+  padding: 12px;
+  color: var(--text-muted);
+}
+
+.tree-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px 3px 0;
+  cursor: pointer;
+  user-select: none;
+}
+
+.tree-row:hover {
+  background: var(--bg-hover);
+}
+
+.tree-row.is-selected {
+  background: var(--bg-selected);
+}
+
+/* The caret of a folder, pointing down once it is open. A file keeps the same
+   box, empty, so every row's icon lines up. */
+.tree-twisty {
+  flex: none;
+  width: 12px;
+  color: var(--text-muted);
+  font-size: 9px;
+  line-height: 1;
+  text-align: center;
+  transition: transform 0.12s ease;
+}
+
+.tree-twisty.is-open {
+  transform: rotate(90deg);
+}
+
+.tree-icon {
+  flex: none;
+  font-size: 13px;
+}
+
+.tree-label {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.rename-field {
+  flex: 1;
+  min-width: 0;
+  padding: 1px 4px;
+  background: var(--bg);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  color: var(--text);
+  font: inherit;
+}
+
+/* --------------------------------------------------------------- toolbar -- */
+
+.note-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+}
+
+.note-identity {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+
+.note-path {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.note-dirty {
+  color: var(--accent);
+}
+
+.note-modes,
+.note-actions {
+  display: flex;
+  flex: none;
+  gap: 6px;
+}
+
+.hidden-input {
+  display: none;
+}
+
+/* ---------------------------------------------------------------- panes -- */
+
+.note-preview,
+.note-editor {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.note-preview {
+  padding: 24px 32px 64px;
+}
+
+.note-editor {
+  display: flex;
+  overflow: hidden;
+}
+
+.note-textarea {
+  flex: 1;
+  padding: 24px 32px;
+  background: var(--bg);
+  border: 0;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 13.5px;
+  line-height: 1.65;
+  resize: none;
+  tab-size: 2;
+}
+
+.note-textarea:focus {
+  outline: none;
+}
+
+/* ------------------------------------------------------------ in place -- */
+
+/* A block is written where it is read, so nothing may jump when one opens:
+   what marks the block under the pointer is an outline, which takes no room
+   of its own, and the field that replaces it keeps the rhythm of a paragraph. */
+.note-block {
+  border-radius: var(--radius);
+  cursor: text;
+}
+
+.note-block:hover {
+  background: var(--bg-hover);
+  outline: 6px solid var(--bg-hover);
+}
+
+.note-block-error {
+  margin: 0 0 12px;
+  color: var(--danger);
+}
+
+.block-editor {
+  margin: 0.7em 0;
+}
+
+.block-textarea {
+  display: block;
+  width: 100%;
+  padding: 8px 10px;
+  overflow: hidden;
+  background: var(--bg-panel);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 13.5px;
+  line-height: 1.65;
+  resize: none;
+  tab-size: 2;
+}
+
+.block-textarea:focus {
+  outline: none;
+}
+
+.block-tools {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+  margin-top: 6px;
+}
+
+.note-append {
+  min-height: 4em;
+  cursor: text;
+}
+
+.note-append-hint {
+  color: var(--text-muted);
+}
+
+/* ------------------------------------------------------------- rendered -- */
+
+/* The note is read across the whole pane: everything the window has left once
+   the sidebar has taken its column. */
+.markdown-body {
+  max-width: none;
+}
+
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3 {
+  margin: 1.4em 0 0.5em;
+  line-height: 1.3;
+}
+
+.markdown-body h1 {
+  margin-top: 0;
+  padding-bottom: 0.2em;
+  border-bottom: 1px solid var(--border);
+}
+
+.markdown-body p,
+.markdown-body ul,
+.markdown-body ol {
+  margin: 0.7em 0;
+}
+
+.markdown-body code {
+  padding: 0.15em 0.35em;
+  background: var(--code-bg);
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+}
+
+.markdown-body pre {
+  padding: 12px 14px;
+  overflow-x: auto;
+  background: var(--code-bg);
+  border-radius: var(--radius);
+}
+
+.markdown-body pre code {
+  padding: 0;
+  background: none;
+}
+
+.markdown-body blockquote {
+  margin: 0.8em 0;
+  padding: 0.1em 1em;
+  border-left: 3px solid var(--border);
+  color: var(--text-muted);
+}
+
+.markdown-body table {
+  border-collapse: collapse;
+  margin: 1em 0;
+}
+
+.markdown-body th,
+.markdown-body td {
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  text-align: left;
+}
+
+.markdown-body th {
+  background: var(--bg-sunken);
+}
+
+.markdown-body img {
+  max-width: 100%;
+  border-radius: var(--radius);
+}
+
+.markdown-body hr {
+  border: 0;
+  border-top: 1px solid var(--border);
+}
+
+.markdown-body a {
+  color: var(--accent);
+}
+
+/* Task lists. The boxes are disabled: a note is edited as Markdown, so ticking
+   one here would be a change the file never heard about. */
+.markdown-body .task-list {
+  padding-left: 1.1em;
+  list-style: none;
+}
+
+.markdown-body .task-list-item {
+  position: relative;
+}
+
+.markdown-body .task-list-item input[type='checkbox'] {
+  position: absolute;
+  top: 0.32em;
+  left: -1.35em;
+  width: 0.95em;
+  height: 0.95em;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: default;
+}
+
+.markdown-body .task-list-item:has(input:checked) {
+  color: var(--text-muted);
+}
+
+/* A link that resolves is a link; one that does not says so. */
+.markdown-body a.wikilink {
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  text-decoration: none;
+}
+
+.markdown-body a.wikilink-unresolved {
+  border-bottom-style: dashed;
+  border-bottom-color: color-mix(in srgb, var(--danger) 55%, transparent);
+  color: var(--danger);
+}
+
+/* ------------------------------------------------------------ highlights -- */
+
+mark.hl-yellow,
+.hl-yellow {
+  background: var(--hl-yellow);
+  color: var(--hl-text);
+}
+
+mark.hl-blue,
+.hl-blue {
+  background: var(--hl-blue);
+  color: var(--hl-text);
+}
+
+mark.hl-green,
+.hl-green {
+  background: var(--hl-green);
+  color: var(--hl-text);
+}
+
+.markdown-body mark {
+  padding: 0.05em 0.15em;
+  border-radius: 3px;
+}
+
+/* ---------------------------------------------------------------- menus -- */
+
+.context-menu {
+  position: fixed;
+  z-index: 60;
+  min-width: 200px;
+  margin: 0;
+  padding: 4px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 22%);
+  list-style: none;
+}
+
+.context-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.context-menu-item:hover {
+  background: var(--bg-hover);
+}
+
+.context-menu-item.is-danger {
+  color: var(--danger);
+}
+
+.context-menu-item.is-separated {
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  border-radius: 0 0 4px 4px;
+}
+
+.context-menu-icon {
+  width: 16px;
+  text-align: center;
+}
+
+.highlight-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+}
+
+.highlight-menu {
+  position: fixed;
+  display: flex;
+  gap: 6px;
+  padding: 6px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 22%);
+}
+
+.highlight-swatch {
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.highlight-swatch.hl-transparent {
+  background: var(--bg-sunken);
+}
+
+/* --------------------------------------------------------- autocomplete -- */
+
+.link-autocomplete {
+  position: fixed;
+  z-index: 70;
+  width: 280px;
+  max-height: 280px;
+  margin: 0;
+  padding: 4px;
+  overflow: auto;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 22%);
+  list-style: none;
+}
+
+.link-suggestion {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.link-suggestion.is-highlighted {
+  background: var(--bg-selected);
+}
+
+.link-suggestion-name {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.link-suggestion-folder {
+  flex: none;
+  max-width: 45%;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 11px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* -------------------------------------------------------------- dialogs -- */
+
+/* Native <dialog>: the browser gives it the top layer, the focus trap and the
+   Escape key, so none of that is re-implemented in the components. */
+dialog.dialog {
+  width: min(440px, calc(100vw - 32px));
+  padding: 20px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 16px 48px rgb(0 0 0 / 32%);
+  color: var(--text);
+  font: inherit;
+}
+
+dialog.dialog::backdrop {
+  background: rgb(0 0 0 / 42%);
+}
+
+dialog.dialog:not([open]) {
+  display: none;
+}
+
+.dialog-form {
+  display: contents;
+}
+
+.dialog-title {
+  margin: 0 0 8px;
+  font-size: 16px;
+}
+
+.dialog-message {
+  margin: 0 0 18px;
+  color: var(--text-muted);
+}
+
+.dialog-label {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--text-muted);
+  font-size: 12.5px;
+}
+
+.dialog-field {
+  width: 100%;
+  margin-bottom: 18px;
+  padding: 7px 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font: inherit;
+}
+
+.dialog-field:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* -------------------------------------------------------------- buttons -- */
+
+.button {
+  padding: 5px 11px;
+  background: var(--bg-sunken);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  white-space: nowrap;
+}
+
+.button:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+.button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.button-small {
+  padding: 3px 9px;
+  font-size: 12.5px;
+}
+
+.button.is-active {
+  background: var(--bg-selected);
+  border-color: var(--accent);
+}
+
+.button-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+
+.button-primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 85%, black);
+}
+
+.button-danger {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #fff;
+}
+
+.icon-button {
+  padding: 3px 7px;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.icon-button:hover {
+  background: var(--bg-hover);
+}

@@ -1,0 +1,93 @@
+# Dragon Glass — every setting, with its default and the variable that overrules it.
+#
+# Three layers decide every value, and they win in this order:
+#   1. the defaults in src/config.py, which is what a checkout with nothing
+#      configured runs on;
+#   2. this file — or wherever DRAGONGLASS_CONFIG_FILE says;
+#   3. the environment, which overrules both, so a container passing its own
+#      values keeps them whatever is written here.
+#
+# Every key is optional: delete this whole file and Dragon Glass still runs.
+# A key that is present and unreadable is reported, and the layer below answers
+# instead. A file that is present and unparseable stops the server.
+#
+# Relative paths are read against the directory the server was started in,
+# which build_and_run.sh makes the root of the project.
+
+paths:
+  # Where the hollow is. Created on first start if it is not there.
+  # DRAGONGLASS_HOLLOW_ROOT — default: data/root
+  hollow_root: data/root
+
+  # Where the built frontend is looked for. Absent means the API answers alone.
+  # DRAGONGLASS_FRONTEND_DIST — default: src/frontend/dist
+  frontend_dist: src/frontend/dist
+
+server:
+  # The address to bind. 0.0.0.0 accepts from the network — read
+  # "What it does not do" in the README before you do that.
+  # DRAGONGLASS_HOST — default: 127.0.0.1
+  host: 127.0.0.1
+
+  # DRAGONGLASS_PORT — default: 8017
+  port: 8017
+
+  # The browser origins allowed to call the API. A frontend served by this same
+  # process, or reached through the Vite proxy, needs nothing here.
+  # DRAGONGLASS_CORS_ORIGINS (comma-separated) — default: none
+  cors_origins: []
+  # cors_origins:
+  #   - http://localhost:5173
+
+  # The largest image an upload may carry, in bytes.
+  # DRAGONGLASS_MAX_IMAGE_BYTES — default: 10485760 (10 MiB)
+  max_image_bytes: 10485760
+
+  # The largest note or .zip an import may carry, in bytes.
+  # DRAGONGLASS_MAX_IMPORT_BYTES — default: 52428800 (50 MiB)
+  max_import_bytes: 52428800
+
+logging:
+  # Level of the root logger: DEBUG, INFO, WARNING, ERROR, CRITICAL.
+  # DRAGONGLASS_LOG_LEVEL — default: INFO
+  level: INFO
+
+hollow:
+  # Which extension makes a file a note.
+  # DRAGONGLASS_NOTE_EXTENSION — default: .md
+  note_extension: .md
+
+  # The suffix of a note's sidecar image folder: X.md keeps its pictures in
+  # X_images/, beside it, and the folder follows the note on every rename,
+  # move and delete.
+  # DRAGONGLASS_IMAGES_SUFFIX — default: _images
+  images_suffix: _images
+
+  # Which image extensions appear in the tree. Anything else on disk is
+  # ignored rather than hidden, and stays where it is.
+  # DRAGONGLASS_IMAGE_EXTENSIONS (comma-separated) — default: the list below
+  image_extensions: [.png, .jpg, .jpeg, .gif, .webp, .svg, .bmp]
+
+  # Whether a save is allowed to rename the file after the note's own
+  # "# Heading". Off means a note is named only from the tree.
+  # DRAGONGLASS_SYNC_TITLE — default: true
+  sync_title: true
+
+markdown:
+  # The Markdown extensions to enable. A name that cannot be loaded is
+  # reported and left out; it costs that one feature, not the server.
+  # DRAGONGLASS_MARKDOWN_EXTENSIONS (comma-separated) — default: the list below
+  extensions: [fenced_code, tables, toc, sane_lists]
+
+  # Whether [[wiki-links]] are resolved at all.
+  # DRAGONGLASS_MARKDOWN_WIKILINKS — default: true
+  wikilinks: true
+
+  # Whether relative image paths are rewritten towards /hollow/...
+  # DRAGONGLASS_MARKDOWN_IMAGE_PATHS — default: true
+  image_paths: true
+
+  # Whether "- [x]" and "- [ ]" list items become checkboxes. Markdown has no
+  # task lists of its own, so without this the brackets stay in the text.
+  # DRAGONGLASS_MARKDOWN_TASKLISTS — default: true
+  tasklists: true

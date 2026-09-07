@@ -1,0 +1,12 @@
+.git
+.gitignore
+.venv
+__pycache__
+**/__pycache__
+*.pyc
+data
+src/frontend/node_modules
+src/frontend/dist
+.pytest_cache
+.ruff_cache
+README.md
