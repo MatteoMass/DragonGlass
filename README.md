@@ -10,7 +10,7 @@
 
 
 <p align="center">
-  <img src="src/frontend/public/favicon.png" width="96" height="96" alt="Dragon Glass">
+  <img src="assets/dragon_glass.png" alt="Dragon Glass">
 </p>
 
 
