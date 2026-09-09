@@ -1,64 +1,13 @@
 /**
- * The only place in the app that talks HTTP.
+ * The hollow's own HTTP calls: notes, folders, entries, images, imports.
  *
- * Every path is hollow-relative and encoded per segment, which is what the
- * backend expects. Nothing else in the frontend builds a URL.
+ * The settings and tutor plugins keep their own API modules, `settings.ts`
+ * and `tutor.ts`, built on the same `http.ts` plumbing -- so this module
+ * never grows to know about a plugin that gets added or removed.
  */
 
-import {
-  ApiError,
-  type Entry,
-  type ImportResult,
-  type Note,
-  type NoteBlock,
-  type TreeNode,
-  type UploadedImage,
-} from './types'
-
-/** Percent-encode a hollow-relative path, segment by segment. */
-function encodePath(path: string): string {
-  return path
-    .split('/')
-    .filter((segment) => segment.length > 0)
-    .map(encodeURIComponent)
-    .join('/')
-}
-
-/** Read the reason out of a failed response, whatever shape it arrived in. */
-async function reasonOf(response: Response): Promise<string> {
-  try {
-    const body = await response.json()
-    if (typeof body?.detail === 'string') return body.detail
-    if (Array.isArray(body?.detail)) return body.detail.map((item: any) => item?.msg).join(', ')
-  } catch {
-    /* a body that is not JSON tells us nothing more than the status does */
-  }
-  return `Error ${response.status}`
-}
-
-/** Send one request and parse its answer, raising ApiError on any failure. */
-async function request<T>(url: string, init?: RequestInit): Promise<T> {
-  let response: Response
-  try {
-    response = await fetch(url, init)
-  } catch {
-    throw new ApiError('The server is not answering', 0)
-  }
-  if (!response.ok) {
-    throw new ApiError(await reasonOf(response), response.status)
-  }
-  if (response.status === 204) return undefined as T
-  return (await response.json()) as T
-}
-
-/** Send a JSON body. */
-function json(method: string, body: unknown): RequestInit {
-  return {
-    method,
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  }
-}
+import { ApiError, encodePath, json, request } from './http'
+import type { Entry, ImportResult, Note, NoteBlock, TreeNode, UploadedImage } from './types'
 
 export const api = {
   /** The whole hollow tree in one response. */

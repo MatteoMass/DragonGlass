@@ -6,7 +6,17 @@ import vue from '@vitejs/plugin-vue'
  * The routes the backend owns. In development Vite proxies them, so the app
  * uses the same relative URLs it does when the backend serves it.
  */
-const API_ROUTES = ['/tree', '/notes', '/folders', '/entries', '/images', '/hollow']
+const API_ROUTES = [
+  '/tree',
+  '/notes',
+  '/folders',
+  '/entries',
+  '/images',
+  '/imports',
+  '/hollow',
+  '/settings',
+  '/tutor',
+]
 
 const target = process.env.DRAGONGLASS_API_URL ?? 'http://127.0.0.1:8000'
 

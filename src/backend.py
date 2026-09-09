@@ -29,6 +29,16 @@ from connectors.hollow_connector import (
     HollowConnector,
     HollowError,
 )
+from connectors.settings_connector import SettingsConnector
+from connectors.tutor_connector import (
+    ImportNotFound as TutorImportNotFound,
+    InvalidAttempt,
+    InvalidMapping,
+    QuizNotFound,
+    TutorConnector,
+    TutorError,
+    UnsupportedFile,
+)
 from core import MarkdownRenderer, TitleSynchroniser
 
 logger = logging.getLogger(__name__)
@@ -42,6 +52,14 @@ STATUS_BY_ERROR: tuple[tuple[type[HollowError], int], ...] = (
     (InvalidName, 400),
     (InvalidPath, 400),
     (InvalidMove, 400),
+)
+
+TUTOR_STATUS_BY_ERROR: tuple[tuple[type[TutorError], int], ...] = (
+    (TutorImportNotFound, 404),
+    (QuizNotFound, 404),
+    (InvalidMapping, 400),
+    (UnsupportedFile, 400),
+    (InvalidAttempt, 400),
 )
 
 
@@ -60,6 +78,14 @@ def _status_for(error: HollowError) -> int:
     request, and is answered ``500``.
     """
     for kind, code in STATUS_BY_ERROR:
+        if isinstance(error, kind):
+            return code
+    return 500
+
+
+def _status_for_tutor(error: TutorError) -> int:
+    """The status code that answers one tutor connector error."""
+    for kind, code in TUTOR_STATUS_BY_ERROR:
         if isinstance(error, kind):
             return code
     return 500
@@ -115,6 +141,8 @@ def create_app(config: Settings = settings) -> FastAPI:
     )
     app.state.max_image_bytes = config.server.max_image_bytes
     app.state.max_import_bytes = config.server.max_import_bytes
+    app.state.settings_store = SettingsConnector(config.paths.settings_file)
+    app.state.tutor_store = TutorConnector(config.paths.tutor_file)
 
     @app.exception_handler(HollowError)
     async def hollow_error_handler(_: Request, error: HollowError) -> JSONResponse:
@@ -122,6 +150,14 @@ def create_app(config: Settings = settings) -> FastAPI:
         status_code = _status_for(error)
         if status_code >= 500:
             logger.exception("The hollow failed to answer", exc_info=error)
+        return JSONResponse(status_code=status_code, content={"detail": str(error)})
+
+    @app.exception_handler(TutorError)
+    async def tutor_error_handler(_: Request, error: TutorError) -> JSONResponse:
+        """Answer every tutor connector error with its status code and its reason."""
+        status_code = _status_for_tutor(error)
+        if status_code >= 500:
+            logger.exception("The tutor failed to answer", exc_info=error)
         return JSONResponse(status_code=status_code, content={"detail": str(error)})
 
     if config.server.cors_origins:

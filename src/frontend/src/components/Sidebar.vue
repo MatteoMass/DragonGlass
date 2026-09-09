@@ -9,9 +9,12 @@
  */
 import { ref } from 'vue'
 
+import { useAppView } from '@/composables/useAppView'
 import { useContextMenu } from '@/composables/useContextMenu'
 import { useEditor } from '@/composables/useEditor'
 import { usePrompt } from '@/composables/usePrompt'
+import { useSettings } from '@/composables/useSettings'
+import { useSettingsPanel } from '@/composables/useSettingsPanel'
 import { useSidebar } from '@/composables/useSidebar'
 import { useTheme } from '@/composables/useTheme'
 import { useHollow } from '@/composables/useHollow'
@@ -25,6 +28,9 @@ const { theme, toggle } = useTheme()
 const { collapsed, toggle: toggleSidebar } = useSidebar()
 const { open: openMenu } = useContextMenu()
 const { ask } = usePrompt()
+const { show: showSettings } = useSettingsPanel()
+const { isEnabled } = useSettings()
+const { view, showTutor } = useAppView()
 
 const importInput = ref<HTMLInputElement | null>(null)
 
@@ -118,6 +124,9 @@ async function onImportChosen(event: Event): Promise<void> {
 
       <template v-if="!collapsed">
         <h1 class="sidebar-title">Dragon Glass</h1>
+        <button type="button" class="icon-button" title="Settings" @click="showSettings">
+          ⚙️
+        </button>
         <button
           type="button"
           class="icon-button"
@@ -130,39 +139,54 @@ async function onImportChosen(event: Event): Promise<void> {
     </header>
 
     <template v-if="!collapsed">
-      <div class="sidebar-actions">
-        <button
-          type="button"
-          class="button button-small"
-          title="New note"
-          @click="newNote(hollow.currentFolder.value)"
-        >
-          📄 Note
-        </button>
-        <button
-          type="button"
-          class="button button-small"
-          title="New folder"
-          @click="newFolder(hollow.currentFolder.value)"
-        >
-          📁 Folder
-        </button>
-        <button
-          type="button"
-          class="button button-small"
-          title="Import a .md note or a .zip archive"
-          @click="importInput?.click()"
-        >
-          📥 Import
-        </button>
-        <button
-          type="button"
-          class="icon-button"
-          title="Reload the tree"
-          @click="hollow.refreshTree()"
-        >
-          ↻
-        </button>
+      <div class="sidebar-toolbar">
+        <div class="sidebar-toolbar-group">
+          <button
+            type="button"
+            class="icon-button"
+            title="New note"
+            @click="newNote(hollow.currentFolder.value)"
+          >
+            📄
+          </button>
+          <button
+            type="button"
+            class="icon-button"
+            title="New folder"
+            @click="newFolder(hollow.currentFolder.value)"
+          >
+            📁
+          </button>
+          <button
+            type="button"
+            class="icon-button"
+            title="Import a .md note or a .zip archive"
+            @click="importInput?.click()"
+          >
+            📥
+          </button>
+        </div>
+
+        <div class="sidebar-toolbar-group">
+          <button
+            v-if="isEnabled('tutor')"
+            type="button"
+            class="icon-button"
+            :class="{ 'is-active': view === 'tutor' }"
+            title="DragonGlass Tutor"
+            @click="showTutor()"
+          >
+            🎓
+          </button>
+          <button
+            type="button"
+            class="icon-button"
+            title="Reload the tree"
+            @click="hollow.refreshTree()"
+          >
+            ↻
+          </button>
+        </div>
       </div>
 
       <div class="sidebar-tree">

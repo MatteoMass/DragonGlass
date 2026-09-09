@@ -42,6 +42,8 @@ class PathsSettings:
 
     hollow_root: Path = Path("data/root")
     frontend_dist: Path = Path("src/frontend/dist")
+    settings_file: Path = Path("data/settings.json")
+    tutor_file: Path = Path("data/tutor.json")
 
 
 @dataclass(frozen=True, slots=True)
@@ -253,6 +255,8 @@ def load_settings(config_file: Path | None = None) -> Settings:
             {
                 "hollow_root": ("HOLLOW_ROOT", lambda raw: Path(_as_str(raw))),
                 "frontend_dist": ("FRONTEND_DIST", lambda raw: Path(_as_str(raw))),
+                "settings_file": ("SETTINGS_FILE", lambda raw: Path(_as_str(raw))),
+                "tutor_file": ("TUTOR_FILE", lambda raw: Path(_as_str(raw))),
             },
         ),
         server=_resolve(

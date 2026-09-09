@@ -130,10 +130,11 @@ class NoteIndex:
         wanted = name.strip().lower()
         if not wanted:
             return None
+        stem = wanted[: -len(".md")] if wanted.endswith(".md") else wanted
         matches = [
             note
             for note in self.notes
-            if note.name.lower() == wanted or note.path.lower() == wanted
+            if note.name.lower() == stem or note.path.lower() == wanted
         ]
         if not matches:
             return None

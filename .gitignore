@@ -219,5 +219,7 @@ __marimo__/
 
 # Dragon Glass
 data/root/
+data/settings.json
+data/tutor.json
 src/frontend/node_modules/
 src/frontend/dist/

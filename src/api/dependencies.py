@@ -1,4 +1,4 @@
-"""What every router asks for, and the only place the application state is reached."""
+"""What the hollow's own routers ask for, and the only place its state is reached."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-/** The payloads the backend takes and gives back. */
+/** The payloads the hollow's own backend resources take and give back. */
 
 /** What a node of the hollow tree is. */
 export type EntryKind = 'folder' | 'note' | 'image'
@@ -61,16 +61,4 @@ export interface ImportResult {
   created: string[]
   /** Entries of a .zip that were neither a note nor an image, and so were left out. */
   skipped: number
-}
-
-/** An error the backend answered with, carrying its reason. */
-export class ApiError extends Error {
-  constructor(
-    message: string,
-    /** The HTTP status the backend answered with. */
-    readonly status: number,
-  ) {
-    super(message)
-    this.name = 'ApiError'
-  }
 }

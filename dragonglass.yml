@@ -23,6 +23,15 @@ paths:
   # DRAGONGLASS_FRONTEND_DIST — default: src/frontend/dist
   frontend_dist: src/frontend/dist
 
+  # Where the feature-toggle state is kept. Unlike the rest of this file, the
+  # running app writes to it — it is not meant to be hand-edited.
+  # DRAGONGLASS_SETTINGS_FILE — default: data/settings.json
+  settings_file: data/settings.json
+
+  # Where the exam tutor's quiz sets are kept. Also app-written, not hand-edited.
+  # DRAGONGLASS_TUTOR_FILE — default: data/tutor.json
+  tutor_file: data/tutor.json
+
 server:
   # The address to bind. 0.0.0.0 accepts from the network — read
   # "What it does not do" in the README before you do that.

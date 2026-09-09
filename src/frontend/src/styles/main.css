@@ -160,24 +160,18 @@ body {
   text-overflow: ellipsis;
 }
 
-.sidebar-actions {
+.sidebar-toolbar {
   display: flex;
-  gap: 4px;
-  padding: 0 12px 10px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 8px;
   border-bottom: 1px solid var(--border);
 }
 
-.sidebar-actions .button {
-  flex: 1;
-  background: none;
-  border-color: transparent;
-  color: var(--text-muted);
-}
-
-.sidebar-actions .button:hover:not(:disabled) {
-  background: var(--bg-hover);
-  border-color: transparent;
-  color: var(--text);
+.sidebar-toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
 }
 
 .sidebar-tree {
@@ -818,4 +812,20 @@ dialog.dialog:not([open]) {
 
 .icon-button:hover {
   background: var(--bg-hover);
+}
+
+.icon-button.is-active {
+  background: var(--bg-selected);
+  border-color: var(--accent);
+}
+
+/**
+ * A field-level or list-level error message. Generic chrome shared by any
+ * component with a form or a list that can fail -- not owned by one plugin,
+ * so it stays here rather than in a plugin's own scoped styles.
+ */
+.field-error {
+  margin: 0 0 12px;
+  color: var(--danger);
+  font-size: 12.5px;
 }

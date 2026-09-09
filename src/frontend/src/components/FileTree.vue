@@ -8,6 +8,7 @@
 import { ref } from 'vue'
 
 import type { TreeNode as Node } from '@/api/client'
+import { useAppView } from '@/composables/useAppView'
 import { useConfirm } from '@/composables/useConfirm'
 import { useContextMenu } from '@/composables/useContextMenu'
 import { useEditor } from '@/composables/useEditor'
@@ -21,11 +22,13 @@ const editor = useEditor()
 const { ask } = useConfirm()
 const { ask: askName } = usePrompt()
 const { open: openMenu } = useContextMenu()
+const { showNotes } = useAppView()
 
 const renaming = ref('')
 
-/** Open a note, or fold and unfold a folder. */
+/** Open a note, or fold and unfold a folder — always back in the notes view. */
 async function onOpen(node: Node): Promise<void> {
+  showNotes()
   if (node.kind === 'folder') {
     hollow.select(node.path)
     hollow.toggleFolder(node.path)

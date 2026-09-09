@@ -1,4 +1,9 @@
-"""The payloads the API takes and gives back, and nothing else."""
+"""The payloads the hollow's own API takes and gives back, and nothing else.
+
+The settings and tutor plugins keep their own payloads in
+``schemas_settings.py`` and ``schemas_tutor.py``, so this module never grows
+to know about a plugin that gets added or removed.
+"""
 
 from __future__ import annotations
 

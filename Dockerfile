@@ -27,7 +27,8 @@ RUN pip install --no-cache-dir \
         "uvicorn[standard]>=0.52,<1.0" \
         "markdown>=3.10,<4.0" \
         "pyyaml>=6.0,<7.0" \
-        "python-multipart>=0.0.32,<0.1"
+        "python-multipart>=0.0.32,<0.1" \
+        "openpyxl>=3.1,<4.0"
 
 COPY src/ ./src/
 COPY dragonglass.yml ./dragonglass.yml
