@@ -10,7 +10,7 @@
 
 
 <p align="center">
-  <img src="assets/dragon_glass.png" alt="Dragon Glass">
+  <img src="assets/dragon_glass.png" alt="Dragon Glass" width="320">
 </p>
 
 
