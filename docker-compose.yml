@@ -1,0 +1,28 @@
+services:
+  dragon-glass:
+    build: .
+    image: dragon-glass
+    container_name: dragon-glass
+    ports:
+      - "8017:8017"
+    volumes:
+      # The notes outlive the container.
+      - hollow:/app/data/root
+      # A setting changes with a restart instead of a rebuild. The container
+      # sets DRAGONGLASS_HOLLOW_ROOT itself, and a variable always wins over the
+      # file — so there is no mode to switch and nothing to edit before building.
+      - ./dragonglass.yml:/app/dragonglass.yml:ro
+    restart: unless-stopped
+
+  # The frontend build on its own, writing into the checkout so a local run can
+  # serve it:  docker compose --profile build run --rm frontend-build
+  frontend-build:
+    profiles: ["build"]
+    image: node:22-alpine
+    working_dir: /work
+    volumes:
+      - ./src/frontend:/work
+    command: sh -c "npm ci || npm install && npm run build"
+
+volumes:
+  hollow:
