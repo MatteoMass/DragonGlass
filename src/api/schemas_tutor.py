@@ -47,6 +47,42 @@ class TutorCommit(BaseModel):
         description="The literal that splits a reference label into several source "
         "names, used only when multi_reference is set.",
     )
+    include_images: bool = Field(
+        default=False,
+        description="Whether images uploaded alongside this mapping should be matched "
+        "to the rows that name them.",
+    )
+    image_column: str | None = Field(
+        default=None,
+        description="The column to search for an uploaded image's name, used only when "
+        "include_images is set. Usually the question column itself.",
+    )
+
+
+class TutorNoteOut(BaseModel):
+    """One note left on a question, after it was answered."""
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True, from_attributes=True)
+
+    id: str = Field(description="The note's id, stable within its question.")
+    text: str = Field(description="The note's text.")
+    created_at: str = Field(description="When it was written, ISO 8601.")
+
+
+class TutorNoteCreate(BaseModel):
+    """The body that adds a note to a question."""
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+    text: str = Field(min_length=1, description="The note's text.")
+
+
+class TutorNoteUpdate(BaseModel):
+    """The body that changes a note's text."""
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+    text: str = Field(min_length=1, description="The note's new text.")
 
 
 class TutorQuestionOut(BaseModel):
@@ -66,6 +102,15 @@ class TutorQuestionOut(BaseModel):
         default_factory=list,
         description="The hollow-relative paths each source in reference resolved to; a "
         "source that matched nothing is left out.",
+    )
+    notes: list[TutorNoteOut] = Field(
+        default_factory=list,
+        description="The notes left on this question, oldest first.",
+    )
+    image_paths: list[str] = Field(
+        default_factory=list,
+        description="The tutor-relative paths of the images matched to this question "
+        "at import time, in upload order.",
     )
 
 

@@ -58,11 +58,11 @@ export function useTutor() {
     pendingImport.value = null
   }
 
-  /** Map the staged import's columns and build a quiz set out of it. */
-  async function commitImport(payload: TutorCommitPayload): Promise<boolean> {
+  /** Map the staged import's columns and build a quiz set out of it, images included. */
+  async function commitImport(payload: TutorCommitPayload, images: File[] = []): Promise<boolean> {
     const staged = pendingImport.value
     if (!staged) return false
-    const quiz = await attempt(() => tutorApi.commitTutorImport(staged.importId, payload))
+    const quiz = await attempt(() => tutorApi.commitTutorImport(staged.importId, payload, images))
     if (!quiz) return false
     pendingImport.value = null
     activeQuiz.value = quiz
@@ -111,6 +111,36 @@ export function useTutor() {
     return true
   }
 
+  /** Add a note to a question of the open quiz set, after it has been answered. */
+  async function addNote(questionId: string, text: string): Promise<boolean> {
+    const quiz = activeQuiz.value
+    if (!quiz) return false
+    const updated = await attempt(() => tutorApi.addTutorNote(quiz.id, questionId, text))
+    if (!updated) return false
+    activeQuiz.value = updated
+    return true
+  }
+
+  /** Change one note's text, independently of its question's other notes. */
+  async function updateNote(questionId: string, noteId: string, text: string): Promise<boolean> {
+    const quiz = activeQuiz.value
+    if (!quiz) return false
+    const updated = await attempt(() => tutorApi.updateTutorNote(quiz.id, questionId, noteId, text))
+    if (!updated) return false
+    activeQuiz.value = updated
+    return true
+  }
+
+  /** Delete one note, independently of its question's other notes. */
+  async function deleteNote(questionId: string, noteId: string): Promise<boolean> {
+    const quiz = activeQuiz.value
+    if (!quiz) return false
+    const updated = await attempt(() => tutorApi.deleteTutorNote(quiz.id, questionId, noteId))
+    if (!updated) return false
+    activeQuiz.value = updated
+    return true
+  }
+
   /** Delete a quiz set. */
   async function deleteQuiz(id: string): Promise<void> {
     const done = await attempt(async () => {
@@ -142,6 +172,9 @@ export function useTutor() {
     renameQuiz,
     setReferenceFolder,
     recordAttempt,
+    addNote,
+    updateNote,
+    deleteNote,
     deleteQuiz,
     clearError,
   }

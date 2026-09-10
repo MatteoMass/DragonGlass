@@ -33,7 +33,11 @@ from connectors.settings_connector import SettingsConnector
 from connectors.tutor_connector import (
     ImportNotFound as TutorImportNotFound,
     InvalidAttempt,
+    InvalidImage,
     InvalidMapping,
+    InvalidNote,
+    NoteNotFound,
+    QuestionNotFound,
     QuizNotFound,
     TutorConnector,
     TutorError,
@@ -44,6 +48,7 @@ from core import MarkdownRenderer, TitleSynchroniser
 logger = logging.getLogger(__name__)
 
 HOLLOW_ROUTE = "/hollow"
+TUTOR_IMAGES_ROUTE = "/tutor-images"
 
 STATUS_BY_ERROR: tuple[tuple[type[HollowError], int], ...] = (
     (EntryNotFound, 404),
@@ -57,9 +62,13 @@ STATUS_BY_ERROR: tuple[tuple[type[HollowError], int], ...] = (
 TUTOR_STATUS_BY_ERROR: tuple[tuple[type[TutorError], int], ...] = (
     (TutorImportNotFound, 404),
     (QuizNotFound, 404),
+    (QuestionNotFound, 404),
+    (NoteNotFound, 404),
     (InvalidMapping, 400),
     (UnsupportedFile, 400),
     (InvalidAttempt, 400),
+    (InvalidNote, 400),
+    (InvalidImage, 400),
 )
 
 
@@ -100,7 +109,8 @@ def create_app(config: Settings = settings) -> FastAPI:
     Returns:
         The application, with the hollow, the renderer and the title sync opened
         on its state, every router registered, the hollow's files mounted
-        read-only at ``/hollow`` and the built frontend at ``/``.
+        read-only at ``/hollow``, the tutor's question images at
+        ``/tutor-images``, and the built frontend at ``/``.
     """
     _configure_logging(config.logging.level)
 
@@ -142,7 +152,8 @@ def create_app(config: Settings = settings) -> FastAPI:
     app.state.max_image_bytes = config.server.max_image_bytes
     app.state.max_import_bytes = config.server.max_import_bytes
     app.state.settings_store = SettingsConnector(config.paths.settings_file)
-    app.state.tutor_store = TutorConnector(config.paths.tutor_file)
+    config.paths.tutor_images_root.mkdir(parents=True, exist_ok=True)
+    app.state.tutor_store = TutorConnector(config.paths.tutor_file, config.paths.tutor_images_root)
 
     @app.exception_handler(HollowError)
     async def hollow_error_handler(_: Request, error: HollowError) -> JSONResponse:
@@ -174,6 +185,9 @@ def create_app(config: Settings = settings) -> FastAPI:
         app.include_router(router)
 
     app.mount(HOLLOW_ROUTE, StaticFiles(directory=hollow.root), name="hollow")
+    app.mount(
+        TUTOR_IMAGES_ROUTE, StaticFiles(directory=config.paths.tutor_images_root), name="tutor-images"
+    )
     frontend.mount(app, config.paths.frontend_dist)
 
     return app

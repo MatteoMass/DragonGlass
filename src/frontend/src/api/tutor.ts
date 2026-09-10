@@ -31,6 +31,21 @@ export interface TutorCommitPayload {
   /** The literal that splits a reference label into several source names, used only when
    *  `multiReference` is set. */
   referenceSeparator: string
+  /** Whether uploaded images should be matched to the rows that name them. */
+  includeImages: boolean
+  /** The column to search for an uploaded image's name, used only when `includeImages`
+   *  is set. Usually the question column itself. */
+  imageColumn: string | null
+}
+
+/** One note left on a question, after it was answered. */
+export interface TutorNote {
+  /** The note's id, stable within its question. */
+  id: string
+  /** The note's text. */
+  text: string
+  /** When it was written, ISO 8601. */
+  createdAt: string
 }
 
 /** One question of a quiz set. */
@@ -48,6 +63,10 @@ export interface TutorQuestion {
   /** The hollow-relative paths each source in `reference` resolved to; a source that
    *  matched nothing is left out. */
   referencePaths: string[]
+  /** The notes left on this question, oldest first. */
+  notes: TutorNote[]
+  /** The tutor-relative paths of the images matched to this question at import time. */
+  imagePaths: string[]
 }
 
 /** How a quiz's questions are chosen for one attempt. */
@@ -107,12 +126,20 @@ export const tutorApi = {
     return request<TutorImport>('/tutor/imports', { method: 'POST', body: form })
   },
 
-  /** Map columns of a staged import and build a persisted quiz set out of it. */
-  commitTutorImport(importId: string, payload: TutorCommitPayload): Promise<TutorQuiz> {
-    return request<TutorQuiz>(
-      `/tutor/imports/${encodeURIComponent(importId)}/commit`,
-      json('POST', payload),
-    )
+  /** Map columns of a staged import and build a persisted quiz set out of it, images
+   *  it should be matched against rows included. */
+  commitTutorImport(
+    importId: string,
+    payload: TutorCommitPayload,
+    images: File[] = [],
+  ): Promise<TutorQuiz> {
+    const form = new FormData()
+    form.append('payload', JSON.stringify(payload))
+    for (const image of images) form.append('images', image)
+    return request<TutorQuiz>(`/tutor/imports/${encodeURIComponent(importId)}/commit`, {
+      method: 'POST',
+      body: form,
+    })
   },
 
   /** Every persisted quiz set, without its questions. */
@@ -154,5 +181,36 @@ export const tutorApi = {
   /** Delete a quiz set. */
   deleteTutorQuiz(id: string): Promise<void> {
     return request<void>(`/tutor/quizzes/${encodeURIComponent(id)}`, { method: 'DELETE' })
+  },
+
+  /** Add a note to a question, after it has been answered. */
+  addTutorNote(quizId: string, questionId: string, text: string): Promise<TutorQuiz> {
+    return request<TutorQuiz>(
+      `/tutor/quizzes/${encodeURIComponent(quizId)}/questions/${encodeURIComponent(questionId)}/notes`,
+      json('POST', { text }),
+    )
+  },
+
+  /** Change one note's text, independently of the question's other notes. */
+  updateTutorNote(
+    quizId: string,
+    questionId: string,
+    noteId: string,
+    text: string,
+  ): Promise<TutorQuiz> {
+    return request<TutorQuiz>(
+      `/tutor/quizzes/${encodeURIComponent(quizId)}/questions/${encodeURIComponent(questionId)}` +
+        `/notes/${encodeURIComponent(noteId)}`,
+      json('PATCH', { text }),
+    )
+  },
+
+  /** Delete one note, independently of the question's other notes. */
+  deleteTutorNote(quizId: string, questionId: string, noteId: string): Promise<TutorQuiz> {
+    return request<TutorQuiz>(
+      `/tutor/quizzes/${encodeURIComponent(quizId)}/questions/${encodeURIComponent(questionId)}` +
+        `/notes/${encodeURIComponent(noteId)}`,
+      { method: 'DELETE' },
+    )
   },
 }

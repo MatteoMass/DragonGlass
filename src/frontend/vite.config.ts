@@ -16,6 +16,7 @@ const API_ROUTES = [
   '/hollow',
   '/settings',
   '/tutor',
+  '/tutor-images',
 ]
 
 const target = process.env.DRAGONGLASS_API_URL ?? 'http://127.0.0.1:8000'
