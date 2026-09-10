@@ -7,7 +7,8 @@ stays invisible until it is turned on in the settings panel.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
+from pydantic import ValidationError
 
 from connectors.hollow_connector import NoteIndex
 
@@ -18,6 +19,8 @@ from .schemas_tutor import (
     TutorAttemptCreate,
     TutorCommit,
     TutorImportOut,
+    TutorNoteCreate,
+    TutorNoteUpdate,
     TutorQuizOut,
     TutorQuizRename,
     TutorQuizSummaryOut,
@@ -113,41 +116,76 @@ async def stage_import(
     status_code=status.HTTP_201_CREATED,
     summary="Map columns and build a quiz set out of a staged import",
 )
-def commit_import(
+async def commit_import(
     import_id: str,
-    payload: TutorCommit,
+    request: Request,
     tutor: TutorStore,
     hollow: Hollow,
+    payload: str = Form(description="The column mapping, as JSON -- see TutorCommit."),
+    images: list[UploadFile] = File(
+        default=[], description="Images to match to questions, when include_images is set."
+    ),
 ) -> TutorQuizOut:
     """Turn a staged import into a persisted quiz set.
 
     A reference label is resolved against the hollow's note index the same
     way a wiki-link is, so it matches a note by name regardless of which
-    folder holds it.
+    folder holds it. An uploaded image is matched to every row whose
+    ``image_column`` cell names it, and stored under the quiz set once it is
+    built.
 
     Args:
         import_id: The staged import to build from.
-        payload: The column mapping and the name to give the quiz set.
+        request: The request, read for the configured size limit.
         tutor: The tutor connector.
         hollow: The hollow connector, read for its note index.
+        payload: The column mapping and the name to give the quiz set, sent
+            as a form field carrying JSON since images ride along as files.
+        images: The images to match against ``image_column``, sent as
+            ``multipart/form-data``.
 
     Returns:
         The quiz set that was built and persisted.
+
+    Raises:
+        HTTPException: ``payload`` is not valid JSON for a commit, or an
+            image is larger than the configured limit.
     """
+    try:
+        commit = TutorCommit.model_validate_json(payload)
+    except ValidationError as error:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(error)) from error
+
     note_index = hollow.index()
 
     def resolve_reference(label: str) -> str | None:
         return _resolve_reference(note_index, label)
 
+    image_uploads: list[tuple[str, bytes]] = []
+    if commit.include_images:
+        limit = request.app.state.max_image_bytes
+        for image in images:
+            content = await image.read()
+            if not image.filename or not content:
+                continue
+            if len(content) > limit:
+                raise HTTPException(
+                    status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                    f"'{image.filename}' is larger than the {limit} bytes this hollow accepts",
+                )
+            image_uploads.append((image.filename, content))
+
     quiz = tutor.commit_import(
         import_id,
-        name=payload.name,
-        question_column=payload.question_column,
-        answer_columns=tuple(payload.answer_columns),
-        correct_column=payload.correct_column,
-        reference_column=payload.reference_column,
-        reference_separator=payload.reference_separator.strip() if payload.multi_reference else "",
+        name=commit.name,
+        question_column=commit.question_column,
+        answer_columns=tuple(commit.answer_columns),
+        correct_column=commit.correct_column,
+        reference_column=commit.reference_column,
+        reference_separator=commit.reference_separator.strip() if commit.multi_reference else "",
         resolve_reference=resolve_reference,
+        image_column=commit.image_column if commit.include_images else None,
+        image_uploads=tuple(image_uploads),
     )
     return TutorQuizOut.model_validate(quiz)
 
@@ -232,3 +270,38 @@ def record_attempt(quiz_id: str, payload: TutorAttemptCreate, tutor: TutorStore)
 def delete_quiz(quiz_id: str, tutor: TutorStore) -> None:
     """Delete a quiz set."""
     tutor.delete_quiz(quiz_id)
+
+
+@router.post(
+    "/quizzes/{quiz_id}/questions/{question_id}/notes",
+    response_model=TutorQuizOut,
+    status_code=status.HTTP_201_CREATED,
+    summary="Add a note to a question, after it has been answered",
+)
+def add_note(
+    quiz_id: str, question_id: str, payload: TutorNoteCreate, tutor: TutorStore
+) -> TutorQuizOut:
+    """Add a note to a question."""
+    return TutorQuizOut.model_validate(tutor.add_note(quiz_id, question_id, payload.text))
+
+
+@router.patch(
+    "/quizzes/{quiz_id}/questions/{question_id}/notes/{note_id}",
+    response_model=TutorQuizOut,
+    summary="Change one note's text",
+)
+def update_note(
+    quiz_id: str, question_id: str, note_id: str, payload: TutorNoteUpdate, tutor: TutorStore
+) -> TutorQuizOut:
+    """Change one note's text, independently of the question's other notes."""
+    return TutorQuizOut.model_validate(tutor.update_note(quiz_id, question_id, note_id, payload.text))
+
+
+@router.delete(
+    "/quizzes/{quiz_id}/questions/{question_id}/notes/{note_id}",
+    response_model=TutorQuizOut,
+    summary="Delete one note",
+)
+def delete_note(quiz_id: str, question_id: str, note_id: str, tutor: TutorStore) -> TutorQuizOut:
+    """Delete one note, independently of the question's other notes."""
+    return TutorQuizOut.model_validate(tutor.delete_note(quiz_id, question_id, note_id))

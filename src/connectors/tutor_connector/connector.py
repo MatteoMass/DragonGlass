@@ -21,14 +21,19 @@ from dataclasses import asdict, replace
 from datetime import UTC, datetime
 from pathlib import Path
 
+from . import images
 from .parsing import parse_upload
 from .types import (
     ImportNotFound,
     InvalidAttempt,
     InvalidMapping,
+    InvalidNote,
+    NoteNotFound,
     ParsedTable,
+    QuestionNotFound,
     QuizAttempt,
     QuizNotFound,
+    QuizNote,
     QuizQuestion,
     QuizSet,
     QuizSummary,
@@ -52,6 +57,12 @@ def _read_reference_paths(question: dict) -> tuple[str, ...]:
     return (legacy,) if legacy else ()
 
 
+def _stem(filename: str) -> str:
+    """A file name without its extension, the whole name when it has none."""
+    stem, dot, _extension = filename.rpartition(".")
+    return stem if dot else filename
+
+
 def _split_reference_label(label: str, separator: str) -> list[str]:
     """A reference label split into its source names.
 
@@ -72,13 +83,16 @@ def _split_reference_label(label: str, separator: str) -> list[str]:
 class TutorConnector:
     """Staged imports and persisted quiz sets for the exam tutor."""
 
-    def __init__(self, path: Path) -> None:
+    def __init__(self, path: Path, images_root: Path) -> None:
         """Open the connector on its data file, reading what it holds.
 
         Args:
             path: Where quiz sets are persisted. Created on first write.
+            images_root: Where question images are kept, one folder per quiz
+                set. Created on first upload.
         """
         self._path = path
+        self._images_root = images_root
         self._lock = threading.Lock()
         self._pending: OrderedDict[str, ParsedTable] = OrderedDict()
         self._quizzes: dict[str, QuizSet] = self._read()
@@ -113,6 +127,15 @@ class TutorConnector:
                             ),
                             reference=question.get("reference", ""),
                             reference_paths=_read_reference_paths(question),
+                            notes=tuple(
+                                QuizNote(
+                                    id=note["id"],
+                                    text=note["text"],
+                                    created_at=note["created_at"],
+                                )
+                                for note in question.get("notes", [])
+                            ),
+                            image_paths=tuple(question.get("image_paths", ())),
                         )
                         for question in raw.get("questions", [])
                     ),
@@ -186,6 +209,8 @@ class TutorConnector:
         reference_column: str | None,
         reference_separator: str = "",
         resolve_reference: Callable[[str], str | None],
+        image_column: str | None = None,
+        image_uploads: tuple[tuple[str, bytes], ...] = (),
     ) -> QuizSet:
         """Build and persist a quiz set out of a staged import and a column mapping.
 
@@ -210,6 +235,17 @@ class TutorConnector:
             resolve_reference: Called with each non-empty reference label
                 part to resolve it to a hollow-relative path, or None when
                 nothing matches.
+            image_column: The column to search for the name of an uploaded
+                image, or None when the quiz has no images. Usually the
+                question column itself -- a question naming its own picture
+                in its text.
+            image_uploads: Every image uploaded alongside the mapping, its
+                name as it arrived paired with its bytes. Each one is stored
+                once, then matched to every row whose ``image_column`` cell
+                names it (its name without the extension, found anywhere in
+                the cell, case-insensitively) -- so one image can illustrate
+                more than one question, and a question can carry more than
+                one image.
 
         Returns:
             The quiz set that was persisted.
@@ -219,6 +255,7 @@ class TutorConnector:
             InvalidMapping: A named column is not in the table, fewer than two
                 answer columns were given, or a row's correct-answer value or
                 answers could not be resolved.
+            InvalidImage: An uploaded image is not one the tutor accepts.
         """
         table = self.get_pending(import_id)
         columns = set(table.columns)
@@ -229,6 +266,16 @@ class TutorConnector:
                 raise InvalidMapping(f"'{column}' is not a column of the uploaded file")
         if reference_column is not None and reference_column not in columns:
             raise InvalidMapping(f"'{reference_column}' is not a column of the uploaded file")
+        if image_column is not None and image_column not in columns:
+            raise InvalidMapping(f"'{image_column}' is not a column of the uploaded file")
+
+        quiz_id = uuid.uuid4().hex
+        stored_images: list[tuple[str, str]] = []
+        for filename, content in image_uploads:
+            stored_path = images.store(self._images_root, quiz_id, filename, content)
+            stem = _stem(filename).strip().lower()
+            if stem:
+                stored_images.append((stem, stored_path))
 
         index_of = {column: position for position, column in enumerate(table.columns)}
         questions: list[QuizQuestion] = []
@@ -253,6 +300,10 @@ class TutorConnector:
             reference_paths = tuple(
                 path for part in parts if (path := resolve_reference(part)) is not None
             )
+            image_haystack = row[index_of[image_column]].lower() if image_column else ""
+            image_paths = tuple(
+                stored_path for stem, stored_path in stored_images if stem in image_haystack
+            )
             questions.append(
                 QuizQuestion(
                     id=uuid.uuid4().hex,
@@ -261,13 +312,14 @@ class TutorConnector:
                     correct_indices=correct_indices,
                     reference=reference_label,
                     reference_paths=reference_paths,
+                    image_paths=image_paths,
                 )
             )
         if not questions:
             raise InvalidMapping("The uploaded file has no usable rows")
 
         quiz = QuizSet(
-            id=uuid.uuid4().hex,
+            id=quiz_id,
             name=name.strip() or table.filename,
             created_at=datetime.now(UTC).isoformat(),
             questions=tuple(questions),
@@ -421,6 +473,97 @@ class TutorConnector:
             self._quizzes[quiz_id] = updated
             self._write()
         return updated
+
+    def _replace_question(
+        self,
+        quiz_id: str,
+        question_id: str,
+        transform: Callable[[QuizQuestion], QuizQuestion],
+    ) -> QuizSet:
+        """Rebuild one question of a quiz set through ``transform``, persisted.
+
+        Raises:
+            QuizNotFound: No quiz set carries ``quiz_id``.
+            QuestionNotFound: No question of that quiz set carries ``question_id``.
+        """
+        with self._lock:
+            quiz = self._quizzes.get(quiz_id)
+            if quiz is None:
+                raise QuizNotFound(f"No such quiz: {quiz_id}")
+            if not any(question.id == question_id for question in quiz.questions):
+                raise QuestionNotFound(f"No such question: {question_id}")
+            questions = tuple(
+                transform(question) if question.id == question_id else question
+                for question in quiz.questions
+            )
+            updated = replace(quiz, questions=questions)
+            self._quizzes[quiz_id] = updated
+            self._write()
+        return updated
+
+    def add_note(self, quiz_id: str, question_id: str, text: str) -> QuizSet:
+        """Add a note to a question, after it has been answered.
+
+        Args:
+            quiz_id: The quiz set the question belongs to.
+            question_id: The question to add the note to.
+            text: The note's text.
+
+        Returns:
+            The quiz set, with the new note appended to the question.
+
+        Raises:
+            QuizNotFound: No quiz set carries ``quiz_id``.
+            QuestionNotFound: No question of that quiz set carries ``question_id``.
+            InvalidNote: ``text`` is blank once trimmed.
+        """
+        clean = text.strip()
+        if not clean:
+            raise InvalidNote("A note cannot be blank")
+        note = QuizNote(id=uuid.uuid4().hex, text=clean, created_at=datetime.now(UTC).isoformat())
+        return self._replace_question(
+            quiz_id, question_id, lambda question: replace(question, notes=(*question.notes, note))
+        )
+
+    def update_note(self, quiz_id: str, question_id: str, note_id: str, text: str) -> QuizSet:
+        """Change one note's text, independently of the question's other notes.
+
+        Raises:
+            QuizNotFound: No quiz set carries ``quiz_id``.
+            QuestionNotFound: No question of that quiz set carries ``question_id``.
+            NoteNotFound: No note of that question carries ``note_id``.
+            InvalidNote: ``text`` is blank once trimmed.
+        """
+        clean = text.strip()
+        if not clean:
+            raise InvalidNote("A note cannot be blank")
+
+        def transform(question: QuizQuestion) -> QuizQuestion:
+            if not any(note.id == note_id for note in question.notes):
+                raise NoteNotFound(f"No such note: {note_id}")
+            notes = tuple(
+                replace(note, text=clean) if note.id == note_id else note for note in question.notes
+            )
+            return replace(question, notes=notes)
+
+        return self._replace_question(quiz_id, question_id, transform)
+
+    def delete_note(self, quiz_id: str, question_id: str, note_id: str) -> QuizSet:
+        """Remove one note, independently of the question's other notes.
+
+        Raises:
+            QuizNotFound: No quiz set carries ``quiz_id``.
+            QuestionNotFound: No question of that quiz set carries ``question_id``.
+            NoteNotFound: No note of that question carries ``note_id``.
+        """
+
+        def transform(question: QuizQuestion) -> QuizQuestion:
+            if not any(note.id == note_id for note in question.notes):
+                raise NoteNotFound(f"No such note: {note_id}")
+            notes = tuple(note for note in question.notes if note.id != note_id)
+            return replace(question, notes=notes)
+
+        return self._replace_question(quiz_id, question_id, transform)
 
     def delete_quiz(self, quiz_id: str) -> None:
         """Delete a quiz set.

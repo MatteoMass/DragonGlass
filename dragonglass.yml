@@ -32,6 +32,10 @@ paths:
   # DRAGONGLASS_TUTOR_FILE — default: data/tutor.json
   tutor_file: data/tutor.json
 
+  # Where the exam tutor's question images are kept. Also app-written.
+  # DRAGONGLASS_TUTOR_IMAGES_ROOT — default: data/tutor_images
+  tutor_images_root: data/tutor_images
+
 server:
   # The address to bind. 0.0.0.0 accepts from the network — read
   # "What it does not do" in the README before you do that.

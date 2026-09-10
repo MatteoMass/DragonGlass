@@ -13,7 +13,7 @@
 import { computed, ref, watch } from 'vue'
 
 import { ApiError, api, type Note, type TreeNode } from '@/api/client'
-import type { TutorMode, TutorQuestion } from '@/api/tutor'
+import type { TutorMode, TutorNote, TutorQuestion } from '@/api/tutor'
 import { useAppView } from '@/composables/useAppView'
 import { useConfirm } from '@/composables/useConfirm'
 import { useHollow } from '@/composables/useHollow'
@@ -37,6 +37,9 @@ const correctColumn = ref('')
 const referenceColumn = ref('')
 const multiReference = ref(false)
 const referenceSeparator = ref(';')
+const includeImages = ref(false)
+const imageColumn = ref('')
+const imageFiles = ref<File[]>([])
 const mappingError = ref('')
 
 watch(
@@ -50,9 +53,23 @@ watch(
     referenceColumn.value = ''
     multiReference.value = false
     referenceSeparator.value = ';'
+    includeImages.value = false
+    imageColumn.value = ''
+    imageFiles.value = []
     mappingError.value = ''
   },
 )
+
+/** Default the image column to the question column, the first time images are turned on. */
+watch(includeImages, (on) => {
+  if (on && !imageColumn.value) imageColumn.value = questionColumn.value
+})
+
+/** Keep the chosen image files in sync with the file input. */
+function onImagesChosen(event: Event): void {
+  const input = event.target as HTMLInputElement
+  imageFiles.value = input.files ? Array.from(input.files) : []
+}
 
 /** Send the chosen file off to be staged, whatever format it is. */
 async function onFileChosen(event: Event): Promise<void> {
@@ -77,15 +94,28 @@ async function submitMapping(): Promise<void> {
     mappingError.value = 'Give the separator between references.'
     return
   }
-  await tutor.commitImport({
-    name: name.value,
-    questionColumn: questionColumn.value,
-    answerColumns: answerColumns.value,
-    correctColumn: correctColumn.value,
-    referenceColumn: referenceColumn.value || null,
-    multiReference: multiReference.value,
-    referenceSeparator: referenceSeparator.value,
-  })
+  if (includeImages.value && !imageColumn.value) {
+    mappingError.value = 'Pick which column names each image.'
+    return
+  }
+  if (includeImages.value && imageFiles.value.length === 0) {
+    mappingError.value = 'Choose the images to match against that column.'
+    return
+  }
+  await tutor.commitImport(
+    {
+      name: name.value,
+      questionColumn: questionColumn.value,
+      answerColumns: answerColumns.value,
+      correctColumn: correctColumn.value,
+      referenceColumn: referenceColumn.value || null,
+      multiReference: multiReference.value,
+      referenceSeparator: referenceSeparator.value,
+      includeImages: includeImages.value,
+      imageColumn: includeImages.value ? imageColumn.value : null,
+    },
+    includeImages.value ? imageFiles.value : [],
+  )
 }
 
 /** Delete a quiz set, once the user confirms. */
@@ -257,6 +287,8 @@ function startQuiz(): void {
   results.value = {}
   referenceNote.value = null
   referenceError.value = ''
+  noteDraft.value = ''
+  cancelEditNote()
   takingSession.value = true
 }
 
@@ -267,6 +299,8 @@ function goTo(index: number): void {
   confirmed.value = false
   referenceNote.value = null
   referenceError.value = ''
+  noteDraft.value = ''
+  cancelEditNote()
 }
 
 /**
@@ -326,6 +360,74 @@ function closeReference(): void {
 /** A hollow-relative path's own file name, dropping the folders it sits in. */
 function fileName(path: string): string {
   return path.split('/').pop() ?? path
+}
+
+/* -------------------------------------------------------------------- notes -- */
+
+const noteDraft = ref('')
+const editingNoteId = ref<string | null>(null)
+const editingNoteText = ref('')
+
+/** Replace one question of the running session with its freshly-saved version. */
+function syncSessionQuestion(updated: TutorQuestion): void {
+  const index = sessionQuestions.value.findIndex((question) => question.id === updated.id)
+  if (index === -1) return
+  const next = [...sessionQuestions.value]
+  next[index] = updated
+  sessionQuestions.value = next
+}
+
+/** After a note operation, pull the question's fresh notes back into the session. */
+function refreshCurrentQuestion(): void {
+  const questionId = currentQuestion.value?.id
+  const updated = tutor.activeQuiz.value?.questions.find((question) => question.id === questionId)
+  if (updated) syncSessionQuestion(updated)
+}
+
+/** Add the drafted note to the current question. */
+async function addNote(): Promise<void> {
+  const question = currentQuestion.value
+  const text = noteDraft.value.trim()
+  if (!question || !text) return
+  if (await tutor.addNote(question.id, text)) {
+    noteDraft.value = ''
+    refreshCurrentQuestion()
+  }
+}
+
+/** Start editing one note, independently of the question's other notes. */
+function startEditNote(note: TutorNote): void {
+  editingNoteId.value = note.id
+  editingNoteText.value = note.text
+}
+
+function cancelEditNote(): void {
+  editingNoteId.value = null
+  editingNoteText.value = ''
+}
+
+/** Save the note being edited. */
+async function saveEditNote(): Promise<void> {
+  const question = currentQuestion.value
+  const noteId = editingNoteId.value
+  const text = editingNoteText.value.trim()
+  if (!question || !noteId || !text) return
+  if (await tutor.updateNote(question.id, noteId, text)) {
+    refreshCurrentQuestion()
+    cancelEditNote()
+  }
+}
+
+/** Delete one note, independently of the question's other notes. */
+async function removeNote(noteId: string): Promise<void> {
+  const question = currentQuestion.value
+  if (!question) return
+  const agreed = await ask('Delete this note', 'This note will be removed. This cannot be undone.', {
+    confirmLabel: 'Delete',
+    danger: true,
+  })
+  if (!agreed) return
+  if (await tutor.deleteNote(question.id, noteId)) refreshCurrentQuestion()
 }
 
 /** Leave the attempt without recording it, back to the detail page. */
@@ -409,6 +511,36 @@ watch(view, (current) => {
         </template>
       </template>
 
+      <label class="tutor-checkbox tutor-multi-reference">
+        <input v-model="includeImages" type="checkbox" />
+        Include images
+      </label>
+
+      <template v-if="includeImages">
+        <label class="dialog-label" for="tutor-image-column">
+          Column naming each image (usually the question itself)
+        </label>
+        <select id="tutor-image-column" v-model="imageColumn" class="dialog-field">
+          <option v-for="column in tutor.pendingImport.value.columns" :key="column" :value="column">
+            {{ column }}
+          </option>
+        </select>
+
+        <label class="dialog-label" for="tutor-images">Images</label>
+        <input
+          id="tutor-images"
+          class="dialog-field"
+          type="file"
+          accept="image/*"
+          multiple
+          @change="onImagesChosen"
+        />
+        <p class="tutor-hint">
+          {{ imageFiles.length }} image{{ imageFiles.length === 1 ? '' : 's' }} chosen -- each one is
+          matched to every row whose column above names it.
+        </p>
+      </template>
+
       <div class="tutor-preview">
         <table>
           <thead>
@@ -468,6 +600,16 @@ watch(view, (current) => {
             Question {{ currentIndex + 1 }} of {{ sessionQuestions.length }}
           </p>
           <h2 class="tutor-question-text">{{ currentQuestion.question }}</h2>
+
+          <div v-if="currentQuestion.imagePaths.length" class="tutor-question-images">
+            <img
+              v-for="path in currentQuestion.imagePaths"
+              :key="path"
+              :src="`/tutor-images/${path}`"
+              :alt="currentQuestion.question"
+            />
+          </div>
+
           <p v-if="isMultiAnswer" class="tutor-hint">Select all that apply.</p>
 
           <ul class="tutor-answers">
@@ -531,6 +673,64 @@ watch(view, (current) => {
 
           <p v-if="referenceLoading" class="tutor-hint">Loading the reference…</p>
           <p v-if="referenceError" class="field-error">{{ referenceError }}</p>
+
+          <section v-if="confirmed && currentQuestion" class="tutor-notes">
+            <h3 class="tutor-section-title">Notes</h3>
+            <ul v-if="currentQuestion.notes.length" class="tutor-note-list">
+              <li v-for="note in currentQuestion.notes" :key="note.id" class="tutor-note">
+                <template v-if="editingNoteId === note.id">
+                  <textarea v-model="editingNoteText" class="dialog-field tutor-note-field" rows="2" />
+                  <div class="tutor-note-actions">
+                    <button type="button" class="button button-small" @click="cancelEditNote()">
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      class="button button-small button-primary"
+                      :disabled="!editingNoteText.trim()"
+                      @click="saveEditNote()"
+                    >
+                      Save
+                    </button>
+                  </div>
+                </template>
+                <template v-else>
+                  <p class="tutor-note-text">{{ note.text }}</p>
+                  <div class="tutor-note-actions">
+                    <button type="button" class="icon-button" title="Edit this note" @click="startEditNote(note)">
+                      ✏️
+                    </button>
+                    <button
+                      type="button"
+                      class="icon-button"
+                      title="Delete this note"
+                      @click="removeNote(note.id)"
+                    >
+                      🗑️
+                    </button>
+                  </div>
+                </template>
+              </li>
+            </ul>
+            <p v-else class="tutor-hint">No notes yet.</p>
+
+            <div class="tutor-note-new">
+              <textarea
+                v-model="noteDraft"
+                class="dialog-field tutor-note-field"
+                rows="2"
+                placeholder="Add a note about this question…"
+              />
+              <button
+                type="button"
+                class="button button-small"
+                :disabled="!noteDraft.trim()"
+                @click="addNote()"
+              >
+                Add note
+              </button>
+            </div>
+          </section>
         </article>
       </div>
 
@@ -935,6 +1135,20 @@ watch(view, (current) => {
   font-size: 18px;
 }
 
+.tutor-question-images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.tutor-question-images img {
+  max-width: 100%;
+  max-height: 320px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
 .tutor-answers {
   display: flex;
   flex-direction: column;
@@ -1028,6 +1242,58 @@ watch(view, (current) => {
 .tutor-reference-body {
   padding: 16px 20px;
   overflow: auto;
+}
+
+/* -- notes -- */
+
+.tutor-notes {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.tutor-note-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+}
+
+.tutor-note {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.tutor-note-text {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  white-space: pre-wrap;
+}
+
+.tutor-note-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 4px;
+}
+
+.tutor-note-field {
+  width: 100%;
+  resize: vertical;
+}
+
+.tutor-note-new {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 /* -- quiz detail -- */

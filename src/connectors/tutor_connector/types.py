@@ -29,6 +29,22 @@ class InvalidAttempt(TutorError):
     """The attempt being recorded does not describe a real result."""
 
 
+class QuestionNotFound(TutorError):
+    """No question of the quiz set carries the requested id."""
+
+
+class NoteNotFound(TutorError):
+    """No note of the question carries the requested id."""
+
+
+class InvalidNote(TutorError):
+    """The note text is blank once trimmed."""
+
+
+class InvalidImage(TutorError):
+    """The uploaded image cannot be stored: a bad extension or an empty name."""
+
+
 @dataclass(frozen=True, slots=True)
 class ParsedTable:
     """A spreadsheet staged for column mapping, before it becomes a quiz.
@@ -45,6 +61,21 @@ class ParsedTable:
     filename: str
     columns: tuple[str, ...]
     rows: tuple[tuple[str, ...], ...]
+
+
+@dataclass(frozen=True, slots=True)
+class QuizNote:
+    """One note an answerer left on a question, after answering it.
+
+    Attributes:
+        id: The note's id, stable within its question.
+        text: The note's text.
+        created_at: When it was written, ISO 8601.
+    """
+
+    id: str
+    text: str
+    created_at: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -65,6 +96,9 @@ class QuizQuestion:
             resolved to, in order -- a part that matched nothing is left out,
             so this can be shorter than the number of parts, empty when none
             of them matched.
+        notes: The notes left on this question, oldest first.
+        image_paths: The tutor-relative paths of the images matched to this
+            question at import time, in upload order.
     """
 
     id: str
@@ -73,6 +107,8 @@ class QuizQuestion:
     correct_indices: tuple[int, ...]
     reference: str = ""
     reference_paths: tuple[str, ...] = ()
+    notes: tuple[QuizNote, ...] = ()
+    image_paths: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
