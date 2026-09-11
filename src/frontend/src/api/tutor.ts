@@ -33,9 +33,9 @@ export interface TutorCommitPayload {
   referenceSeparator: string
   /** Whether uploaded images should be matched to the rows that name them. */
   includeImages: boolean
-  /** The column to search for an uploaded image's name, used only when `includeImages`
-   *  is set. Usually the question column itself. */
-  imageColumn: string | null
+  /** The columns to search for an uploaded image's name, used only when `includeImages`
+   *  is set. Usually the question column, but answer columns may be included too. */
+  imageColumns: string[]
 }
 
 /** One note left on a question, after it was answered. */

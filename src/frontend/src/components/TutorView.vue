@@ -38,7 +38,7 @@ const referenceColumn = ref('')
 const multiReference = ref(false)
 const referenceSeparator = ref(';')
 const includeImages = ref(false)
-const imageColumn = ref('')
+const imageColumns = ref<string[]>([])
 const imageFiles = ref<File[]>([])
 const mappingError = ref('')
 
@@ -54,15 +54,17 @@ watch(
     multiReference.value = false
     referenceSeparator.value = ';'
     includeImages.value = false
-    imageColumn.value = ''
+    imageColumns.value = []
     imageFiles.value = []
     mappingError.value = ''
   },
 )
 
-/** Default the image column to the question column, the first time images are turned on. */
+/** Default the image columns to the question column, the first time images are turned on. */
 watch(includeImages, (on) => {
-  if (on && !imageColumn.value) imageColumn.value = questionColumn.value
+  if (on && imageColumns.value.length === 0 && questionColumn.value) {
+    imageColumns.value = [questionColumn.value]
+  }
 })
 
 /** Keep the chosen image files in sync with the file input. */
@@ -94,8 +96,8 @@ async function submitMapping(): Promise<void> {
     mappingError.value = 'Give the separator between references.'
     return
   }
-  if (includeImages.value && !imageColumn.value) {
-    mappingError.value = 'Pick which column names each image.'
+  if (includeImages.value && imageColumns.value.length === 0) {
+    mappingError.value = 'Pick at least one column naming each image.'
     return
   }
   if (includeImages.value && imageFiles.value.length === 0) {
@@ -112,7 +114,7 @@ async function submitMapping(): Promise<void> {
       multiReference: multiReference.value,
       referenceSeparator: referenceSeparator.value,
       includeImages: includeImages.value,
-      imageColumn: includeImages.value ? imageColumn.value : null,
+      imageColumns: includeImages.value ? imageColumns.value : [],
     },
     includeImages.value ? imageFiles.value : [],
   )
@@ -133,6 +135,7 @@ const takingSession = ref(false)
 const mode = ref<TutorMode>('sequential')
 const limit = ref(1)
 const manualSelection = ref<Set<string>>(new Set())
+const shuffleAnswers = ref(false)
 const startError = ref('')
 
 const quiz = computed(() => tutor.activeQuiz.value)
@@ -187,6 +190,7 @@ watch(
     mode.value = 'sequential'
     limit.value = quiz.value?.questions.length ?? 1
     manualSelection.value = new Set(quiz.value?.questions.map((q) => q.id))
+    shuffleAnswers.value = false
     referenceFolder.value = quiz.value?.referenceFolder ?? ''
     startError.value = ''
   },
@@ -236,6 +240,21 @@ function toggleManual(id: string): void {
   manualSelection.value = set
 }
 
+/** Whether the manual selection already covers as many questions as the limit allows. */
+const manualAllSelected = computed(
+  () => manualSelection.value.size >= Math.min(limit.value, totalQuestions.value),
+)
+
+/** Select every question up to the limit, or clear the selection, in one click. */
+function toggleManualAll(): void {
+  if (manualAllSelected.value) {
+    manualSelection.value = new Set()
+    return
+  }
+  const all = quiz.value?.questions ?? []
+  manualSelection.value = new Set(all.slice(0, limit.value).map((q) => q.id))
+}
+
 /** A random permutation of an array, leaving the original untouched. */
 function shuffled<T>(items: T[]): T[] {
   const copy = [...items]
@@ -246,13 +265,26 @@ function shuffled<T>(items: T[]): T[] {
   return copy
 }
 
+/** A copy of a question with its answers reordered, `correctIndices` remapped to match. */
+function withShuffledAnswers(question: TutorQuestion): TutorQuestion {
+  const order = shuffled(question.answers.map((_, index) => index))
+  const correctIndices = order
+    .map((originalIndex, newIndex) => (question.correctIndices.includes(originalIndex) ? newIndex : -1))
+    .filter((index) => index !== -1)
+  return { ...question, answers: order.map((index) => question.answers[index]), correctIndices }
+}
+
 /** The question queue an attempt in the current mode/limit/selection covers. */
 function buildSession(): TutorQuestion[] {
   const all = quiz.value?.questions ?? []
   const cap = Math.min(Math.max(1, Math.floor(limit.value) || 1), all.length)
-  if (mode.value === 'sequential') return all.slice(0, cap)
-  if (mode.value === 'random') return shuffled(all).slice(0, cap)
-  return all.filter((q) => manualSelection.value.has(q.id)).slice(0, cap)
+  const chosen =
+    mode.value === 'sequential'
+      ? all.slice(0, cap)
+      : mode.value === 'random'
+        ? shuffled(all).slice(0, cap)
+        : all.filter((q) => manualSelection.value.has(q.id)).slice(0, cap)
+  return shuffleAnswers.value ? chosen.map(withShuffledAnswers) : chosen
 }
 
 /** ------------------------------------------------------------------ taking -- */
@@ -268,6 +300,35 @@ const referenceError = ref('')
 const sessionQuestions = ref<TutorQuestion[]>([])
 const currentQuestion = computed(() => sessionQuestions.value[currentIndex.value] ?? null)
 const isMultiAnswer = computed(() => (currentQuestion.value?.correctIndices.length ?? 0) > 1)
+
+/** An image's filename, extension and any `-1`/`-2` de-duplication suffix stripped. */
+function imageStem(path: string): string {
+  const base = path.split('/').pop() ?? path
+  return base.replace(/\.[^./]+$/, '').toLowerCase()
+}
+
+/**
+ * The image matched to each answer, by the same "filename found in the cell's
+ * text" rule the import used -- so an answer whose own text names an image
+ * (as happens when the answer column holds image filenames) shows that image
+ * right on its button instead of the raw path.
+ */
+const answerImages = computed<(string | null)[]>(() => {
+  const question = currentQuestion.value
+  if (!question) return []
+  return question.answers.map((answer) => {
+    const haystack = answer.toLowerCase()
+    return question.imagePaths.find((path) => haystack.includes(imageStem(path))) ?? null
+  })
+})
+
+/** The question's images that matched no answer, shown above the answers as before. */
+const unmatchedQuestionImages = computed(() => {
+  const question = currentQuestion.value
+  if (!question) return []
+  const matched = new Set(answerImages.value.filter((path): path is string => path !== null))
+  return question.imagePaths.filter((path) => !matched.has(path))
+})
 const answeredCount = computed(() => Object.keys(results.value).length)
 const correctCount = computed(() => Object.values(results.value).filter(Boolean).length)
 const isLastQuestion = computed(() => currentIndex.value === sessionQuestions.value.length - 1)
@@ -517,14 +578,13 @@ watch(view, (current) => {
       </label>
 
       <template v-if="includeImages">
-        <label class="dialog-label" for="tutor-image-column">
-          Column naming each image (usually the question itself)
-        </label>
-        <select id="tutor-image-column" v-model="imageColumn" class="dialog-field">
-          <option v-for="column in tutor.pendingImport.value.columns" :key="column" :value="column">
+        <span class="dialog-label">Columns naming each image (e.g. question and answers)</span>
+        <div class="tutor-checkboxes">
+          <label v-for="column in tutor.pendingImport.value.columns" :key="column" class="tutor-checkbox">
+            <input v-model="imageColumns" type="checkbox" :value="column" />
             {{ column }}
-          </option>
-        </select>
+          </label>
+        </div>
 
         <label class="dialog-label" for="tutor-images">Images</label>
         <input
@@ -537,7 +597,7 @@ watch(view, (current) => {
         />
         <p class="tutor-hint">
           {{ imageFiles.length }} image{{ imageFiles.length === 1 ? '' : 's' }} chosen -- each one is
-          matched to every row whose column above names it.
+          matched to every row whose columns above name it.
         </p>
       </template>
 
@@ -601,9 +661,9 @@ watch(view, (current) => {
           </p>
           <h2 class="tutor-question-text">{{ currentQuestion.question }}</h2>
 
-          <div v-if="currentQuestion.imagePaths.length" class="tutor-question-images">
+          <div v-if="unmatchedQuestionImages.length" class="tutor-question-images">
             <img
-              v-for="path in currentQuestion.imagePaths"
+              v-for="path in unmatchedQuestionImages"
               :key="path"
               :src="`/tutor-images/${path}`"
               :alt="currentQuestion.question"
@@ -618,6 +678,7 @@ watch(view, (current) => {
                 type="button"
                 class="tutor-answer"
                 :class="{
+                  'has-image': answerImages[index],
                   'is-selected': selectedSet.has(index) && !confirmed,
                   'is-correct': confirmed && currentQuestion.correctIndices.includes(index),
                   'is-incorrect':
@@ -626,7 +687,13 @@ watch(view, (current) => {
                 :disabled="confirmed"
                 @click="choose(index)"
               >
-                {{ answer }}
+                <img
+                  v-if="answerImages[index]"
+                  :src="`/tutor-images/${answerImages[index]}`"
+                  :alt="answer"
+                  class="tutor-answer-image"
+                />
+                <span v-else>{{ answer }}</span>
               </button>
             </li>
           </ul>
@@ -819,6 +886,11 @@ watch(view, (current) => {
         </label>
       </div>
 
+      <label class="tutor-checkbox tutor-multi-reference">
+        <input v-model="shuffleAnswers" type="checkbox" />
+        Shuffle each question's answers (their correctness stays the same)
+      </label>
+
       <label class="dialog-label" for="tutor-limit">
         How many questions (up to {{ totalQuestions }})
       </label>
@@ -832,7 +904,12 @@ watch(view, (current) => {
       />
 
       <div v-if="mode === 'manual'" class="tutor-manual-picker">
-        <p class="tutor-hint">{{ manualSelection.size }} / {{ limit }} selected</p>
+        <div class="tutor-manual-header">
+          <p class="tutor-hint">{{ manualSelection.size }} / {{ limit }} selected</p>
+          <button type="button" class="button button-small" @click="toggleManualAll()">
+            {{ manualAllSelected ? 'Deselect all' : 'Select all' }}
+          </button>
+        </div>
         <ul class="tutor-manual-list">
           <li v-for="question in quiz.questions" :key="question.id">
             <label class="tutor-manual-item">
@@ -1178,6 +1255,17 @@ watch(view, (current) => {
   cursor: default;
 }
 
+.tutor-answer.has-image {
+  padding: 8px;
+}
+
+.tutor-answer-image {
+  display: block;
+  max-width: 100%;
+  max-height: 260px;
+  border-radius: calc(var(--radius) - 2px);
+}
+
 .tutor-answer.is-selected {
   background: var(--bg-selected);
   border-color: var(--accent);
@@ -1402,6 +1490,13 @@ watch(view, (current) => {
 
 .tutor-manual-picker {
   margin: 4px 0 16px;
+}
+
+.tutor-manual-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .tutor-manual-list {

@@ -131,8 +131,8 @@ async def commit_import(
     A reference label is resolved against the hollow's note index the same
     way a wiki-link is, so it matches a note by name regardless of which
     folder holds it. An uploaded image is matched to every row whose
-    ``image_column`` cell names it, and stored under the quiz set once it is
-    built.
+    ``image_columns`` cells name it, and stored under the quiz set once it
+    is built.
 
     Args:
         import_id: The staged import to build from.
@@ -141,7 +141,7 @@ async def commit_import(
         hollow: The hollow connector, read for its note index.
         payload: The column mapping and the name to give the quiz set, sent
             as a form field carrying JSON since images ride along as files.
-        images: The images to match against ``image_column``, sent as
+        images: The images to match against ``image_columns``, sent as
             ``multipart/form-data``.
 
     Returns:
@@ -184,7 +184,7 @@ async def commit_import(
         reference_column=commit.reference_column,
         reference_separator=commit.reference_separator.strip() if commit.multi_reference else "",
         resolve_reference=resolve_reference,
-        image_column=commit.image_column if commit.include_images else None,
+        image_columns=tuple(commit.image_columns) if commit.include_images else (),
         image_uploads=tuple(image_uploads),
     )
     return TutorQuizOut.model_validate(quiz)

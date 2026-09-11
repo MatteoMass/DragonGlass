@@ -209,7 +209,7 @@ class TutorConnector:
         reference_column: str | None,
         reference_separator: str = "",
         resolve_reference: Callable[[str], str | None],
-        image_column: str | None = None,
+        image_columns: tuple[str, ...] = (),
         image_uploads: tuple[tuple[str, bytes], ...] = (),
     ) -> QuizSet:
         """Build and persist a quiz set out of a staged import and a column mapping.
@@ -235,17 +235,17 @@ class TutorConnector:
             resolve_reference: Called with each non-empty reference label
                 part to resolve it to a hollow-relative path, or None when
                 nothing matches.
-            image_column: The column to search for the name of an uploaded
-                image, or None when the quiz has no images. Usually the
+            image_columns: The columns to search for the name of an uploaded
+                image, or empty when the quiz has no images. Usually the
                 question column itself -- a question naming its own picture
-                in its text.
+                in its text -- but answer columns may be included too.
             image_uploads: Every image uploaded alongside the mapping, its
                 name as it arrived paired with its bytes. Each one is stored
-                once, then matched to every row whose ``image_column`` cell
-                names it (its name without the extension, found anywhere in
-                the cell, case-insensitively) -- so one image can illustrate
-                more than one question, and a question can carry more than
-                one image.
+                once, then matched to every row whose ``image_columns`` cells
+                name it (its name without the extension, found anywhere in
+                those cells, case-insensitively) -- so one image can
+                illustrate more than one question, and a question can carry
+                more than one image.
 
         Returns:
             The quiz set that was persisted.
@@ -266,8 +266,9 @@ class TutorConnector:
                 raise InvalidMapping(f"'{column}' is not a column of the uploaded file")
         if reference_column is not None and reference_column not in columns:
             raise InvalidMapping(f"'{reference_column}' is not a column of the uploaded file")
-        if image_column is not None and image_column not in columns:
-            raise InvalidMapping(f"'{image_column}' is not a column of the uploaded file")
+        for column in image_columns:
+            if column not in columns:
+                raise InvalidMapping(f"'{column}' is not a column of the uploaded file")
 
         quiz_id = uuid.uuid4().hex
         stored_images: list[tuple[str, str]] = []
@@ -300,7 +301,9 @@ class TutorConnector:
             reference_paths = tuple(
                 path for part in parts if (path := resolve_reference(part)) is not None
             )
-            image_haystack = row[index_of[image_column]].lower() if image_column else ""
+            image_haystack = " ".join(
+                row[index_of[column]] for column in image_columns
+            ).lower()
             image_paths = tuple(
                 stored_path for stem, stored_path in stored_images if stem in image_haystack
             )

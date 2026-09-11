@@ -52,10 +52,11 @@ class TutorCommit(BaseModel):
         description="Whether images uploaded alongside this mapping should be matched "
         "to the rows that name them.",
     )
-    image_column: str | None = Field(
-        default=None,
-        description="The column to search for an uploaded image's name, used only when "
-        "include_images is set. Usually the question column itself.",
+    image_columns: list[str] = Field(
+        default_factory=list,
+        description="The columns to search for an uploaded image's name, used only when "
+        "include_images is set. Usually the question column, but answer columns may be "
+        "included too.",
     )
 
 
